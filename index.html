@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="依類別、語言、片長與分級推薦電影，並列出台灣現正熱映與即將上映片單。">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>今晚看什麼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: marquee header → two horizontal reel rows (熱映 / 即將) → filter desk + ranked picks */
+:root{
+  --paper:#eceef3; --card:#ffffff; --ink:#151a2b; --muted:#5b6377; --line:#d3d7e2;
+  --accent:#e3a21c; --accent-ink:#8a5900; --chip:#e2e5ed;
+  --f-display:"Noto Serif TC","Songti TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0e1120; --card:#171b2e; --ink:#e8eaf2; --muted:#9aa1b6; --line:#272c41;
+  --accent:#f2b63a; --accent-ink:#f2b63a; --chip:#20253a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0e1120; --card:#171b2e; --ink:#e8eaf2; --muted:#9aa1b6; --line:#272c41;
+  --accent:#f2b63a; --accent-ink:#f2b63a; --chip:#20253a; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:44px}
+h1,h2{font-family:var(--f-display);font-weight:900;text-wrap:balance;margin:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* header */
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;
+  border-bottom:3px double var(--line);padding-bottom:18px}
+header h1{font-size:clamp(34px,7vw,58px);line-height:1.05;letter-spacing:.02em}
+header h1 span{color:var(--accent-ink)}
+.lede{color:var(--muted);margin:6px 0 0;max-width:46ch}
+.today{text-align:right}
+.today .d{font-family:var(--f-mono);font-size:28px;font-weight:600;letter-spacing:.04em}
+.today .s{font-size:12px;color:var(--muted);letter-spacing:.12em}
+
+/* section heads */
+.sh{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.sh h2{font-size:26px}
+.sh .meta{font-size:13px;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--accent-ink);margin-right:10px}
+
+/* reel row */
+.reel{display:grid;grid-auto-flow:column;grid-auto-columns:220px;gap:12px;overflow-x:auto;
+  scroll-snap-type:x mandatory;padding-bottom:10px;scrollbar-width:thin}
+.reel > *{scroll-snap-align:start}
+
+/* ticket stub card */
+.tk{position:relative;display:grid;grid-template-rows:auto 1fr auto;gap:6px;cursor:pointer;text-align:left;font:inherit;color:inherit;
+  background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 14px 12px;min-height:178px;
+  transition:transform .18s ease,border-color .18s ease}
+.tk:hover{transform:translateY(-2px);border-color:var(--accent)}
+.tk:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.tk::before,.tk::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:var(--paper);
+  border:1px solid var(--line);top:calc(100% - 46px)}
+.tk::before{left:-8px}.tk::after{right:-8px}
+.tk .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tk .dt{font-family:var(--f-mono);font-weight:600;font-size:13px;letter-spacing:.06em;color:var(--accent-ink)}
+.tk .cd{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.tk .t{font-family:var(--f-display);font-weight:900;font-size:18px;line-height:1.25;text-wrap:balance}
+.tk .e{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.tk .bot{border-top:1px dashed var(--line);padding-top:9px;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.tk .go{color:var(--accent-ink);font-weight:700;white-space:nowrap}
+
+/* Taiwan rating badges (fixed semantic colors) */
+.rate{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:3px;color:#fff;letter-spacing:.04em}
+.r0{background:#2e9b4f}.r1{background:#2d6fd6}.r2{background:#e0b000;color:#2a2000}.r3{background:#e06c1a}.r4{background:#c9283a}
+
+/* picker */
+.desk{display:grid;grid-template-columns:300px 1fr;gap:28px;align-items:start}
+@media (max-width:820px){.desk{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:18px}
+@media (min-width:821px){.panel{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}}
+.fg{display:grid;gap:8px}
+.fg > .lb{font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid transparent;background:var(--chip);color:var(--ink);font:inherit;font-size:13px;
+  padding:4px 11px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.chip:focus-visible,select:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select{font:inherit;font-size:14px;padding:7px 10px;border-radius:6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:14px;font-weight:700;padding:9px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1d1400;flex:1}
+
+.results{display:grid;gap:12px;min-width:0}
+.rhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.rhead .n{font-size:13px;color:var(--muted)}
+.pick{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.pick .act{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn.sm{font-size:13px;padding:6px 12px}
+.btn.sm.go{border-color:var(--accent);color:var(--accent-ink)}
+.pick h3{margin:0;font-size:17px;font-family:var(--f-display);font-weight:700}
+.pick .en{font-size:12px;color:var(--muted);font-family:var(--f-mono);letter-spacing:.04em}
+.pick p{margin:6px 0 8px;font-size:14px;max-width:62ch}
+.facts{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--muted);align-items:center}
+.why{font-size:12px;color:var(--accent-ink);font-weight:700;margin-top:6px}
+.score{text-align:right;min-width:54px}
+.score b{display:block;font-family:var(--f-mono);font-size:22px;color:var(--accent-ink)}
+.score span{font-size:10.5px;color:var(--muted);letter-spacing:.1em}
+.status{font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;border:1px solid var(--line)}
+@media (max-width:520px){.pick{grid-template-columns:1fr}.score{grid-row:1;text-align:left;display:flex;gap:6px;align-items:baseline}.score b{display:inline}}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:28px;color:var(--muted);text-align:center}
+.flash{animation:flash 1.2s ease}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+
+/* detail sheet */
+.sheet{position:fixed;inset:0;background:rgba(5,8,18,.55);display:grid;place-items:center;z-index:20;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet .box{background:var(--card);border-radius:12px;max-width:520px;width:100%;display:grid;gap:14px;padding:20px;max-height:100%;overflow:auto}
+.sheet .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.sheet h3{margin:0;font-family:var(--f-display);font-size:22px;line-height:1.3}
+.sheet .lb{font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:700}
+.cinemas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.cinemas a{display:grid;gap:2px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--paper)}
+.cinemas a:hover{border-color:var(--accent)}
+.cinemas a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cinemas b{font-size:14px}.cinemas span{font-size:11.5px;color:var(--muted)}
+.cinemas a.all{grid-column:1/-1;border-style:dashed}
+.cinemas a.direct{border-color:var(--accent);background:var(--card)}
+.cinemas a.direct span{color:var(--accent-ink);font-weight:700}
+.note{font-size:12px;color:var(--muted);margin:0}
+footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>今晚看<span>什麼</span></h1>
+      <p class="lede">挑類別、語言和片長，從院線、即將上映與經典片庫裡排出最適合你的一部。</p>
+    </div>
+    <div class="today"><div class="d mono" id="todayD">10.27</div><div class="s" id="todayS">TUE · 台灣院線</div></div>
+  </header>
+
+  <section aria-labelledby="h-now">
+    <div class="sh"><h2 id="h-now"><span class="tag">NOW SHOWING</span>現正熱映</h2><span class="meta" id="nowMeta"></span></div>
+    <div class="reel" id="nowRow"></div>
+  </section>
+
+  <section aria-labelledby="h-soon">
+    <div class="sh"><h2 id="h-soon"><span class="tag">COMING SOON</span>即將上映</h2><span class="meta">右上角為距上映天數</span></div>
+    <div class="reel" id="soonRow"></div>
+  </section>
+
+  <section aria-labelledby="h-pick">
+    <div class="sh"><h2 id="h-pick"><span class="tag">PICK FOR ME</span>幫我挑片</h2></div>
+    <div class="desk">
+      <form class="panel" id="panel" onsubmit="return false">
+        <div class="fg"><span class="lb">類別（可複選）</span><div class="chips" id="genreChips"></div></div>
+        <div class="fg"><span class="lb">語言（可複選）</span><div class="chips" id="langChips"></div></div>
+        <div class="fg"><span class="lb">範圍</span><div class="chips" id="scopeChips"></div></div>
+        <div class="row2">
+          <div class="fg"><label class="lb" for="len">片長</label>
+            <select id="len"><option value="0">不限</option><option value="100">100 分內</option><option value="120">2 小時內</option><option value="999">想看長片（2h+）</option></select></div>
+          <div class="fg"><label class="lb" for="rate">分級上限</label>
+            <select id="rate"><option value="9">不限</option><option value="0">普遍級</option><option value="1">保護級</option><option value="2">輔12級</option><option value="3">輔15級</option></select></div>
+        </div>
+        <div class="fg"><span class="lb">觀影格式</span><div class="chips"><button type="button" class="chip" id="imax" aria-pressed="false">只看 IMAX 規格大片</button></div></div>
+        <div class="btns">
+          <button type="button" class="btn primary" id="lucky">隨機抽一部</button>
+          <button type="button" class="btn" id="reset">清除條件</button>
+        </div>
+      </form>
+      <div class="results">
+        <div class="rhead"><strong id="rTitle">推薦結果</strong><span class="n" id="rCount"></span></div>
+        <div id="list" class="results"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>院線與即將上映資料整理自 LINE TODAY 電影、威秀影城、開眼電影網等公開片單（2026 年 10 月下旬），上映日期與分級以影城公告為準；未公布的分級或片長以「—」表示。</footer>
+</div>
+
+<div class="sheet" id="sheet" hidden></div>
+
+<script>
+// r: 0普遍 1保護 2輔12 3輔15 4限制 null未公布；lib: 經典片庫；re: 重映；imax: IMAX 規格
+const M=[
+ {t:"挖掘者",e:"Digger",y:"2026-10-01",g:["喜劇","劇情"],l:"英語",r:1,m:129,imax:1,d:"伊納利圖執導、湯姆克魯斯主演的災難喜劇，從公司鑽井平台闖禍開始一路失控。"},
+ {t:"復活男",e:"Reawaken Man: The Red",y:"2026-10-01",g:["動作","奇幻"],l:"韓語",r:null,m:null,d:"韓國網漫改編。具教煥飾演平凡求職者，意外死亡後發現自己 72 小時就會復活，而且每死一次就更強。"},
+ {t:"神鬼劫案2：偷天換日",e:"The Gentleman Thief",y:"2026-10-02",g:["犯罪","動作"],l:"英語",r:null,m:null,d:"約翰屈伏塔領軍，神盜集結老搭檔重出江湖，準備幹一票大的。"},
+ {t:"另一個媽咪",e:"Other Mommy",y:"2026-10-07",g:["恐怖"],l:"英語",r:3,m:93,d:"布倫屋出品的家庭恐怖片，篇幅精簡、節奏緊湊。"},
+ {t:"不存在的罪人",e:"Verity",y:"2026-10-07",g:["驚悚懸疑","犯罪"],l:"英語",r:3,m:117,d:"懸疑犯罪驚悚，適合喜歡層層翻轉的觀眾。"},
+ {t:"快打旋風",e:"Street Fighter",y:"2026-10-15",g:["動作"],l:"英語",r:1,m:119,d:"卡普空經典格鬥遊戲的好萊塢真人版，由傳奇影業製作。"},
+ {t:"逃出鯨吞",e:"Whalefall",y:"2026-10-15",g:["冒險","驚悚懸疑","恐怖"],l:"英語",r:2,m:106,d:"生物災難冒險片，被困在巨獸體內的求生之戰。"},
+ {t:"高年級實習生",e:"The Intern",y:"2026-10-15",g:["劇情","喜劇"],l:"韓語",r:null,m:132,d:"崔岷植與韓韶禧主演的韓國翻拍版，跨世代職場溫情喜劇。"},
+ {t:"宛如星辰的你",e:"You, Like a Star",y:"2026-10-15",g:["愛情","劇情"],l:"日語",r:1,m:134,d:"藤井道人執導的日本愛情電影。"},
+ {t:"沙央",e:"Sha Yang",y:"2026-10-16",g:["劇情"],l:"華語",r:null,m:null,d:"台馬合製，入圍金馬獎的話題作。"},
+ {t:"泥面人",e:"Clayface",y:"2026-10-21",g:["恐怖","科幻","動作"],l:"英語",r:4,m:108,d:"DC 宇宙第一章的反派電影，走科幻恐怖驚悚路線。"},
+ {t:"社群清算",e:"The Social Reckoning",y:"2026-10-22",g:["傳記","劇情"],l:"英語",r:0,m:112,d:"從真實事件發想的科技圈傳記劇情片。"},
+ {t:"煙囪小鎮的普佩2：約定的鐘樓",e:"Chimney Town: Frozen in Time",y:"2026-10-22",g:["動畫","奇幻","冒險"],l:"日語",r:0,m:98,d:"日本動畫續集，適合闔家觀賞的奇幻冒險。"},
+ {t:"加速世界 劇場版 INFINITE BURST",e:"Accel World: Infinite Burst",y:"2026-10-22",g:["動畫","科幻"],l:"日語",r:1,m:82,d:"人氣輕小說動畫的劇場版。"},
+ {t:"蕭邦！蕭邦！",e:"Chopin, Chopin!",y:"2026-10-22",g:["傳記","音樂","劇情"],l:"其他",r:2,m:114,d:"鋼琴詩人蕭邦的人物傳記電影。"},
+ {t:"惡靈古堡：爆發夜",e:"Resident Evil",y:"2026-09-16",g:["恐怖","動作","科幻"],l:"英語",r:3,m:94,d:"真人電影系列新作，喪屍危機再度爆發。"},
+ {t:"消失的金鳳娜",e:"The Evil Inside",y:"2026-10-29",g:["驚悚懸疑"],l:"華語",r:null,m:null,d:"台灣類型片，威秀 TITAN 廳同步上映。"},
+ {t:"即刻狂飆",e:"The Mongoose",y:"2026-10-30",g:["動作","驚悚懸疑"],l:"英語",r:null,m:null,d:"動作驚悚片。"},
+ {t:"世紀初戀 楊麗花",e:"Emperor on Stage",y:"2026-10-30",g:["紀錄"],l:"華語",r:0,m:108,d:"記錄歌仔戲小生天后楊麗花的舞台人生。"},
+ {t:"歐威爾：2+2=5",e:"Orwell: 2+2=5",y:"2026-10-30",g:["紀錄"],l:"英語",r:null,m:null,d:"以作家歐威爾為題的紀錄片。"},
+ {t:"幸福路上",e:"On Happiness Road",y:"2026-10-30",g:["動畫","劇情"],l:"華語",r:null,m:111,re:1,d:"宋欣穎執導的台灣動畫，重返戲院。"},
+ {t:"哥吉拉-0.0",e:"Godzilla Minus Zero",y:"2026-11-05",g:["科幻","動作"],l:"日語",r:null,m:null,imax:1,d:"山崎貴執導的續作，神木隆之介、濱邊美波回歸，哥吉拉登陸紐約。11/5 全台聯合首映。"},
+ {t:"三個傻瓜",e:"3 Idiots",y:"2026-11-06",g:["喜劇","劇情"],l:"其他",r:null,m:170,re:1,d:"印度校園喜劇經典重映。"},
+ {t:"搶銀行先修班",e:"How to Rob a Bank",y:"2026-11-13",g:["犯罪","動作","喜劇"],l:"英語",r:null,m:null,d:"《子彈列車》大衛雷奇執導，尼可拉斯霍特、柔伊克拉維茲主演。"},
+ {t:"聖誕驚奇夜",e:"Ebenezer: A Christmas Carol",y:"2026-11-13",g:["奇幻","劇情"],l:"英語",r:null,m:null,d:"小氣財神新版，強尼戴普主演。"},
+ {t:"告別的年代",e:"The Age of Goodbyes",y:"2026-11-13",g:["劇情"],l:"華語",r:null,m:null,d:"改編自黎紫書同名小說，宋芸樺主演。"},
+ {t:"高校人形金字塔",e:"New Group",y:"2026-11-13",g:["恐怖"],l:"日語",r:null,m:null,d:"新銳導演下津優太的恐怖片，山田杏奈主演，清水崇客串。"},
+ {t:"魔法科高中的劣等生 四葉繼承篇",e:"The Irregular at Magic High School",y:"2026-11-13",g:["動畫","奇幻"],l:"日語",r:null,m:103,d:"司波兄妹迎來高二冬天的劇場版新篇章。"},
+ {t:"飢餓遊戲：黎明收割",e:"The Hunger Games: Sunrise on the Reaping",y:"2026-11-20",g:["動作","科幻","冒險"],l:"英語",r:null,m:null,imax:1,d:"系列第二部前傳，年輕的黑密契參加第 50 屆飢餓遊戲。與北美同步，IMAX 同步上映。"},
+ {t:"門當父不對之親家駕到",e:"Meet the Parents 4",y:"2026-11-27",g:["喜劇"],l:"英語",r:null,m:null,d:"經典親家喜劇系列回歸。"},
+ {t:"沙丘：第三部",e:"Dune: Part Three",y:"2026-12-16",g:["科幻","冒險"],l:"英語",r:null,m:null,imax:1,d:"維勒納夫三部曲完結篇，改編《沙丘救世主》。"},
+ {t:"復仇者聯盟：末日崛起",e:"Avengers: Doomsday",y:"2026-12-16",g:["動作","科幻"],l:"英語",r:null,m:null,imax:1,d:"MCU 大集結，小勞勃道尼飾演末日博士。"},
+ // 經典片庫
+ {lib:1,t:"寄生上流",e:"Parasite",y:"2019",g:["驚悚懸疑","劇情"],l:"韓語",m:132,d:"奉俊昊的階級寓言，坎城金棕櫚與奧斯卡最佳影片。"},
+ {lib:1,t:"屍速列車",e:"Train to Busan",y:"2016",g:["恐怖","動作"],l:"韓語",m:118,d:"一列高鐵上的喪屍逃亡，緊張又催淚。"},
+ {lib:1,t:"你的名字",e:"Your Name",y:"2016",g:["動畫","愛情","奇幻"],l:"日語",m:106,d:"新海誠的交換身體與彗星之戀。"},
+ {lib:1,t:"神隱少女",e:"Spirited Away",y:"2001",g:["動畫","奇幻","冒險"],l:"日語",m:125,d:"宮崎駿代表作，千尋在神靈世界的成長冒險。"},
+ {lib:1,t:"小偷家族",e:"Shoplifters",y:"2018",g:["劇情"],l:"日語",m:121,d:"是枝裕和描寫非血緣家庭，坎城金棕櫚。"},
+ {lib:1,t:"星際效應",e:"Interstellar",y:"2014",g:["科幻","劇情","冒險"],l:"英語",m:169,imax:1,d:"諾蘭的太空史詩，父女情與相對論交織。"},
+ {lib:1,t:"全面啟動",e:"Inception",y:"2010",g:["科幻","動作","驚悚懸疑"],l:"英語",m:148,imax:1,d:"潛入夢境竊取想法的多層盜夢任務。"},
+ {lib:1,t:"沙丘：第二部",e:"Dune: Part Two",y:"2024",g:["科幻","冒險"],l:"英語",m:166,imax:1,d:"看第三部之前的必補作，保羅與弗瑞曼人的崛起。"},
+ {lib:1,t:"捍衛戰士：獨行俠",e:"Top Gun: Maverick",y:"2022",g:["動作"],l:"英語",m:131,imax:1,d:"湯姆克魯斯重回駕駛艙，實拍空戰。"},
+ {lib:1,t:"F1 電影",e:"F1",y:"2025",g:["運動","動作","劇情"],l:"英語",m:156,imax:1,d:"布萊德彼特飾演重返賽道的老將車手，大量實拍賽車鏡頭。"},
+ {lib:1,t:"樂來越愛你",e:"La La Land",y:"2016",g:["愛情","音樂"],l:"英語",m:128,d:"洛杉磯的夢想與愛情歌舞片。"},
+ {lib:1,t:"腦筋急轉彎",e:"Inside Out",y:"2015",g:["動畫","喜劇"],l:"英語",m:95,d:"皮克斯把情緒變成角色，老少咸宜。"},
+ {lib:1,t:"那些年，我們一起追的女孩",e:"You Are the Apple of My Eye",y:"2011",g:["愛情","喜劇"],l:"華語",m:110,d:"九把刀的青春初戀回憶錄。"},
+ {lib:1,t:"我的少女時代",e:"Our Times",y:"2015",g:["愛情","喜劇"],l:"華語",m:134,d:"90 年代校園的暗戀與追星。"},
+ {lib:1,t:"海角七號",e:"Cape No. 7",y:"2008",g:["劇情","音樂","愛情"],l:"華語",m:129,d:"魏德聖在恆春拍出的樂團與跨時代情書。"},
+ {lib:1,t:"返校",e:"Detention",y:"2019",g:["恐怖","驚悚懸疑"],l:"華語",m:103,d:"改編自台灣遊戲，白色恐怖時期的校園驚悚。"},
+ {lib:1,t:"臥虎藏龍",e:"Crouching Tiger, Hidden Dragon",y:"2000",g:["動作","劇情"],l:"華語",m:120,d:"李安的武俠詩篇，竹林對決經典。"}
+];
+const GENRES=["動作","喜劇","劇情","愛情","恐怖","驚悚懸疑","科幻","奇幻","動畫","冒險","犯罪","傳記","紀錄","音樂","運動"];
+const LANGS=["華語","英語","日語","韓語","其他"];
+const SCOPES=[["all","全部"],["now","熱映中"],["soon","即將上映"],["lib","經典片庫"]];
+const RN=["普遍級","保護級","輔12級","輔15級","限制級"];
+
+const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+const W=["SUN","MON","TUE","WED","THU","FRI","SAT"];
+document.getElementById("todayD").textContent=String(today.getMonth()+1).padStart(2,"0")+"."+String(today.getDate()).padStart(2,"0");
+document.getElementById("todayS").textContent=W[today.getDay()]+" · "+today.getFullYear()+" 台灣院線";
+
+M.forEach((x,i)=>{
+  x.id=i;
+  if(x.lib){x.status="lib";return;}
+  const [Y,Mo,D]=x.y.split("-").map(Number); x.date=new Date(Y,Mo-1,D);
+  x.days=Math.round((x.date-today)/864e5);
+  x.status=x.days<=0?"now":"soon";
+});
+const CINEMAS=[
+ {n:"威秀影城",s:"全台 13 座據點",now:"https://www.vscinemas.com.tw/film/index.aspx",soon:"https://www.vscinemas.com.tw/film/coming.aspx"},
+ {n:"秀泰影城",s:"秀泰官網訂票",now:"https://www.showtimes.com.tw/"},
+ {n:"國賓影城",s:"國賓官網訂票",now:"https://www.ambassador.com.tw/"},
+ {n:"新光影城",s:"新光官網訂票",now:"https://www.skcinemas.com/"},
+ {n:"美麗華影城",s:"美麗華官網訂票",now:"https://www.miramarcinemas.tw/"},
+ {n:"喜樂時代影城",s:"喜樂時代官網",now:"https://www.centuryasia.com.tw/"}
+];
+// 單片頁面 id（2026/10/27 查得）
+const VS={"挖掘者":8984,"復活男":8992,"神鬼劫案2：偷天換日":8997,"另一個媽咪":8870,"不存在的罪人":8993,"快打旋風":8700,"逃出鯨吞":8971,
+ "高年級實習生":9021,"宛如星辰的你":9024,"沙央":9026,"泥面人":8985,"社群清算":9014,"煙囪小鎮的普佩2：約定的鐘樓":9030,
+ "加速世界 劇場版 INFINITE BURST":9047,"蕭邦！蕭邦！":9049,"惡靈古堡：爆發夜":8933,"消失的金鳳娜":9040,"即刻狂飆":9060,
+ "世紀初戀 楊麗花":9063,"歐威爾：2+2=5":9062,"哥吉拉-0.0":9029,"三個傻瓜":9001,"搶銀行先修班":9044,"聖誕驚奇夜":8871,
+ "飢餓遊戲：黎明收割":9064,"門當父不對之親家駕到":8698,"沙丘：第三部":9037};
+const ST={"挖掘者":13031,"社群清算":13075,"快打旋風":12718,"宛如星辰的你":13073,"高年級實習生":13060,"哥吉拉-0.0":12887,
+ "另一個媽咪":12864,"不存在的罪人":12762,"逃出鯨吞":13013,"復活男":13026,"搶銀行先修班":12760,"泥面人":13083};
+const DIRECT={
+ "威秀影城":t=>VS[t]&&`https://www.vscinemas.com.tw/vsweb/film/detail.aspx?id=${VS[t]}`,
+ "秀泰影城":t=>ST[t]&&`https://www.showtimes.com.tw/programs/${ST[t]}/`
+};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const md=x=>x.lib?x.y:(x.date.getMonth()+1)+"/"+x.date.getDate();
+const dur=m=>m?Math.floor(m/60)+"h"+String(m%60).padStart(2,"0"):"—";
+const badge=r=>r==null?"":`<span class="rate r${r}">${RN[r]}</span>`;
+function tile(x){
+  const cd=x.status==="soon"?`還有 ${x.days} 天`:(x.re?"重映":"");
+  return `<button class="tk mv" data-id="${x.id}" aria-label="${esc(x.t)}，選擇影城">
+    <div class="top"><span class="dt">${md(x)}</span><span class="cd">${cd}</span></div>
+    <div><div class="t">${esc(x.t)}</div><div class="e">${esc(x.e)}</div></div>
+    <div class="bot"><span>${x.g.slice(0,2).join("・")}${x.r!=null?" "+badge(x.r):""}</span><span class="go">選影城 →</span></div>
+  </button>`;
+}
+const nowList=M.filter(x=>x.status==="now").sort((a,b)=>b.date-a.date);
+const soonList=M.filter(x=>x.status==="soon").sort((a,b)=>a.date-b.date);
+document.getElementById("nowRow").innerHTML=nowList.map(tile).join("");
+document.getElementById("soonRow").innerHTML=soonList.map(tile).join("");
+document.getElementById("nowMeta").textContent=`共 ${nowList.length} 部 · 依上映日新到舊`;
+
+// ---- picker state
+const S={g:["動作","科幻"],l:[],scope:"all",len:"0",rate:"9",imax:false};
+try{const s=JSON.parse(localStorage.getItem("pick-state")||"null");if(s)Object.assign(S,s);}catch(e){}
+const save=()=>{try{localStorage.setItem("pick-state",JSON.stringify(S))}catch(e){}};
+
+function chips(el,items,isOn,onTap){
+  el.innerHTML=items.map(([v,lab])=>`<button type="button" class="chip" data-v="${v}" aria-pressed="${isOn(v)}">${lab}</button>`).join("");
+  el.onclick=e=>{const b=e.target.closest(".chip");if(!b)return;onTap(b.dataset.v);};
+}
+const toggle=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
+function drawControls(){
+  chips(genreChips,GENRES.map(g=>[g,g]),v=>S.g.includes(v),v=>{S.g=toggle(S.g,v);update()});
+  chips(langChips,LANGS.map(g=>[g,g]),v=>S.l.includes(v),v=>{S.l=toggle(S.l,v);update()});
+  chips(scopeChips,SCOPES,v=>S.scope===v,v=>{S.scope=v;update()});
+  len.value=S.len; rate.value=S.rate; imax.setAttribute("aria-pressed",S.imax);
+}
+function rank(){
+  const out=[];
+  for(const x of M){
+    if(S.scope!=="all"&&x.status!==S.scope)continue;
+    if(S.l.length&&!S.l.includes(x.l))continue;
+    const L=+S.len;
+    if(L&&L<999&&x.m&&x.m>L)continue;
+    if(L===999&&!(x.m&&x.m>=120))continue;
+    if(+S.rate<9&&x.r!=null&&x.r>+S.rate)continue;
+    if(S.imax&&!x.imax)continue;
+    const hit=x.g.filter(g=>S.g.includes(g));
+    if(S.g.length&&!hit.length)continue;
+    let sc=S.g.length?hit.length/S.g.length*70+ (hit.length/x.g.length)*15:60;
+    if(S.l.length)sc+=5;
+    if(x.status==="now")sc+=8; else if(x.status==="soon"&&x.days<=14)sc+=5;
+    if(x.imax&&S.imax)sc+=2;
+    const why=[...hit]; if(S.l.length)why.push(x.l); if(x.status==="now")why.push("院線中");
+    out.push({x,sc:Math.min(99,Math.round(sc)),why});
+  }
+  return out.sort((a,b)=>b.sc-a.sc||(a.x.status==="lib")-(b.x.status==="lib"));
+}
+const stLab=x=>x.status==="now"?"熱映中":x.status==="soon"?`${x.days} 天後上映`:"經典片庫";
+function card({x,sc,why}){
+  return `<article class="pick" data-id="${x.id}">
+    <div style="min-width:0">
+      <h3>${esc(x.t)}${x.re?' <span class="status">重映</span>':""}</h3>
+      <div class="en">${esc(x.e)}</div>
+      <p>${esc(x.d)}</p>
+      <div class="facts"><span class="status">${stLab(x)}</span><span class="mono">${md(x)}</span><span>${x.l}</span><span class="mono">${dur(x.m)}</span>${badge(x.r)}<span>${x.g.join("・")}</span></div>
+      ${why.length?`<div class="why">符合：${why.join("・")}</div>`:""}
+      <div class="act"><button type="button" class="btn sm go mv" data-id="${x.id}">${x.lib?"去哪裡看":"選影城訂票"}</button></div>
+    </div>
+    <div class="score"><b>${sc}</b><span>契合度</span></div>
+  </article>`;
+}
+let last=[];
+function update(){
+  save(); drawControls();
+  last=rank();
+  rCount.textContent=`找到 ${last.length} 部`;
+  list.innerHTML=last.length?last.slice(0,12).map(card).join("")+(last.length>12?`<div class="n" style="color:var(--muted);font-size:13px">另有 ${last.length-12} 部符合，縮小條件可看得更精準。</div>`:"")
+    :`<div class="empty">目前沒有同時符合這些條件的片。試著減少一個類別或語言，或把範圍改成「全部」。</div>`;
+}
+len.onchange=()=>{S.len=len.value;update()};
+rate.onchange=()=>{S.rate=rate.value;update()};
+imax.onclick=()=>{S.imax=!S.imax;update()};
+reset.onclick=()=>{Object.assign(S,{g:[],l:[],scope:"all",len:"0",rate:"9",imax:false});update()};
+lucky.onclick=()=>{
+  if(!last.length)return;
+  const pool=last.slice(0,Math.min(8,last.length)); const p=pool[Math.floor(Math.random()*pool.length)];
+  rTitle.textContent=`抽到：${p.x.t}`;
+  list.innerHTML=card(p)+last.filter(o=>o!==p).slice(0,11).map(card).join("");
+  const el=list.firstElementChild; el.classList.add("flash"); el.scrollIntoView({behavior:"smooth",block:"nearest"});
+  setTimeout(()=>rTitle.textContent="推薦結果",4000);
+};
+
+// detail sheet
+function openSheet(id){
+  const x=M[id];
+  const q=encodeURIComponent(x.t+(x.lib?" 線上看":" 電影 時刻表"));
+  const search=`<a class="all" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener"><b>搜尋「${esc(x.t)}」${x.lib?"串流平台":"全台場次"}</b><span>在 Google 開啟</span></a>`;
+  let where;
+  if(x.lib){
+    where=`<p class="note">這部是經典片庫作品，目前不在院線，可以到串流平台找找。</p><div class="cinemas">${search}</div>`;
+  }else{
+    const rows=CINEMAS.map(c=>{const d=DIRECT[c.n]&&DIRECT[c.n](x.t);return {c,d}}).sort((a,b)=>!!b.d-!!a.d);
+    const links=rows.map(({c,d})=>{
+      if(d)return `<a class="direct" href="${d}" target="_blank" rel="noopener"><b>${c.n}</b><span>直達本片頁面 →</span></a>`;
+      const u=x.status==="soon"&&c.soon?c.soon:c.now;
+      return `<a href="${u}" target="_blank" rel="noopener"><b>${c.n}</b><span>官網首頁，需再找片</span></a>`}).join("");
+    where=`<div class="lb">選擇影城</div><div class="cinemas">${links}<a class="all" href="https://today.line.me/tw/v3/movie/incinemas/playing" target="_blank" rel="noopener"><b>LINE TODAY 全台時刻表</b><span>一次比對各影城場次</span></a>${search}</div>
+      <p class="note">${x.status==="soon"?`預計 ${x.y.replaceAll("-","/")} 上映，各影城通常在上映前一週開賣。`:"連結會開啟影城官網，各廳是否有上映以官網為準。"}</p>`;
+  }
+  sheet.innerHTML=`<div class="box" role="dialog" aria-modal="true" aria-label="${esc(x.t)}">
+    <div class="hd"><div><h3>${esc(x.t)}</h3><div class="mono" style="color:var(--muted);font-size:12px">${esc(x.e)}</div></div>
+    <button class="btn sm" id="closeSheet">關閉</button></div>
+    <div class="facts"><span class="status">${stLab(x)}</span><span class="mono">${x.lib?x.y:x.y.replaceAll("-","/")}</span><span>${x.l}</span><span class="mono">${dur(x.m)}</span>${badge(x.r)}${x.imax?'<span class="status">IMAX</span>':""}<span>${x.g.join("・")}</span></div>
+    <p style="margin:0">${esc(x.d)}</p>
+    ${where}
+  </div>`;
+  sheet.hidden=false; document.getElementById("closeSheet").focus();
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".mv"); if(b&&!sheet.contains(b)){openSheet(+b.dataset.id);return;}
+  if(e.target===sheet||e.target.id==="closeSheet")sheet.hidden=true;
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")sheet.hidden=true});
+update();
+</script>
+</body>
+</html>
